@@ -88,11 +88,11 @@ namespace SpellTextBox
 
         protected void OnContextMenuOpening(object sender, RoutedEventArgs e)
         {
-            if (Checker.MisspelledWords.Any(w => SelectionStart >= w.Index && SelectionStart <= w.Index + w.Length))
-                Checker.SelectedMisspelledWord = Checker.MisspelledWords.First(w => SelectionStart >= w.Index && SelectionStart <= w.Index + w.Length);
-            else
-                Checker.SelectedMisspelledWord = null;
+            int lineIndex = GetLineIndexFromCharacterIndex(SelectionStart);
+            int lineFirstCharIndex = GetCharacterIndexFromLineIndex(lineIndex);
 
+            Checker.SelectedMisspelledWord = Checker.MisspelledWords.FirstOrDefault(w => w.LineIndex == GetLineIndexFromCharacterIndex(SelectionStart) && SelectionStart >= lineFirstCharIndex + w.Index && SelectionStart <= lineFirstCharIndex + w.Index + w.Length);
+           
             this.ContextMenu.Items.Clear();
             foreach (var item in Checker.MenuActions)
             {
