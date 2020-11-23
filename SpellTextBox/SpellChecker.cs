@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System;
+using System.Collections.Specialized;
 using System.IO;
 
 namespace SpellTextBox
@@ -15,10 +16,10 @@ namespace SpellTextBox
     {
         private SpellTextBox box;
         private Hunspell hunSpell;
-        private List<Word> words;
+        private HashSet<Word> words;
         private ObservableCollection<Word> misspelledWords;
         private ObservableCollection<Word> suggestedWords;
-        private List<Word> ignoredWords;
+        private HashSet<string> ignoredWords;
         private Word selectedMisspelledWord;
         private Word selectedSuggestedWord;
 
@@ -26,9 +27,9 @@ namespace SpellTextBox
         {
             hunSpell = HunSpell; 
             box = Parent;
-            Words = new List<Word>();
+            Words = new HashSet<Word>();
             MisspelledWords = new ObservableCollection<Word>();
-            IgnoredWords = new List<Word>();
+            IgnoredWords = new HashSet<string>();
             SuggestedWords = new ObservableCollection<Word>();
         }
 
@@ -38,7 +39,7 @@ namespace SpellTextBox
                 hunSpell.Dispose();
         }
 
-        public List<Word> Words
+        public HashSet<Word> Words
         {
             get { return words; }
             set
@@ -100,7 +101,7 @@ namespace SpellTextBox
                         Command = new DelegateCommand(
                             delegate
                             {
-                                SaveToCustomDictionary(SelectedMisspelledWord);
+                                SaveToCustomDictionary(SelectedMisspelledWord.Text);
 
                                 box.FireTextChangeEvent();
                             })
@@ -121,7 +122,7 @@ namespace SpellTextBox
             }
         }
 
-        public List<Word> IgnoredWords
+        public HashSet<string> IgnoredWords
         {
             get { return ignoredWords; }
             set
@@ -158,8 +159,8 @@ namespace SpellTextBox
         {
             if (misspelledWord != null)
             {
-                SuggestedWords = new ObservableCollection<Word>(hunSpell.Suggest(misspelledWord.Text).Select(s => new Word(s, misspelledWord.Index)));
-                if (SuggestedWords.Count == 0) SuggestedWords = new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0) };
+                SuggestedWords = new ObservableCollection<Word>(hunSpell.Suggest(misspelledWord.Text).Select(s => new Word(s, misspelledWord.Index, misspelledWord.LineIndex)));
+                if (SuggestedWords.Count == 0) SuggestedWords = new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0,0) };
             }
             else
             {
@@ -174,29 +175,25 @@ namespace SpellTextBox
             MisspelledWords.Clear();
         }
 
-        public void CheckSpelling(string content)
+        public void CheckSpelling(SpellTextBox textBox)
         {
             if (box.IsSpellCheckEnabled)
             {
                 ClearLists();
 
-                var matches = Regex.Matches(content, @"\w+[^\s]*\w+|\w");
-
-                foreach (Match match in matches)
+                int index =0;
+                for (int lineIndex = 0; lineIndex < textBox.LineCount; lineIndex++)
                 {
-                    Words.Add(new Word(match.Value.Trim(), match.Index));
-                }
+                    var matches = Regex.Matches(textBox.GetLineText(lineIndex), @"\w+[^\s]*\w+|\w");
+                    var matchesString = matches.Cast<Match>().Select(match => match.Value).ToList();
 
-                foreach (var word in Words)
-                {
-                    bool isIgnored = IgnoredWords.Contains(word);
-                    if (!isIgnored)
+                    for (var i = 0; i < matches.Count; i++)
                     {
-                        bool exists = hunSpell.Spell(word.Text);
-                        if (exists)
-                            IgnoredWords.Add(word);
-                        else
-                            MisspelledWords.Add(word);
+                        Match match = matches[i];
+                        if (!IgnoredWords.Contains(match.Value) && !hunSpell.Spell(match.Value))
+                        {
+                            MisspelledWords.Add(new Word(match.Value, match.Index, lineIndex));
+                        }
                     }
                 }
 
@@ -214,10 +211,10 @@ namespace SpellTextBox
             }
         }
 
-        public void SaveToCustomDictionary(Word word)
+        public void SaveToCustomDictionary(string word)
         {
-            File.AppendAllText(box.CustomDictionaryPath, string.Format("{0}{1}", word.Text.ToLower(), Environment.NewLine));
-            hunSpell.Add(word.Text);
+            File.AppendAllText(box.CustomDictionaryPath, $@"{word.ToLower()}{Environment.NewLine}");
+            hunSpell.Add(word);
             IgnoredWords.Add(word);
         }
 

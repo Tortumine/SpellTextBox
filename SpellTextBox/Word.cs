@@ -7,35 +7,26 @@ namespace SpellTextBox
 {
     public class Word
     {
-        int _index;
+        public int LineIndex { get; set; }
 
-        public int Index
-        {
-            get { return _index; }
-            set { _index = value; }
-        }
+        public int Index { get; set; }
 
-        string _text;
-
-        public string Text
-        {
-            get { return _text; }
-            set { _text = value; }
-        }
+        public string Text { get; set; }
 
         public int Length
         {
-            get { return _text.Length; }
+            get { return Text.Length; }
         }
 
         public Word()
         {
         }
 
-        public Word(string text, int index)
+        public Word(string text, int index,int lineIndex)
         {
-            _index = index;
-            _text = text;
+            Index = index;
+            Text = text;
+            LineIndex = lineIndex;
         }
 
         public override string ToString()

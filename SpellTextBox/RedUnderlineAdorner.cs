@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Windows;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
@@ -74,66 +75,36 @@ namespace SpellTextBox
             return parent;
         }
 
-        Tuple<Word, Word> Split(Word word)
-        {
-            
-            int lineIndex = box.GetLineIndexFromCharacterIndex(word.Index);
-            int lineStart = box.GetCharacterIndexFromLineIndex(lineIndex);
-            int lineEnd = lineStart + box.GetLineLength(lineIndex);
-            int wordEnd = word.Index + word.Length;
-
-            if (wordEnd > lineEnd)
-            {
-                return new Tuple<Word, Word>(
-                    new Word(word.Text.Substring(0, lineEnd - word.Index - 1), word.Index),
-                    new Word(word.Text.Substring(lineEnd - word.Index), lineEnd));
-            }
-            else
-            {
-                return new Tuple<Word, Word>(
-                    word,
-                    null);
-            }
-
-        }
-
         protected override void OnRender(DrawingContext drawingContext)
         {
             if (box != null && box.IsSpellCheckEnabled && box.IsSpellcheckCompleted)
             {
-                foreach (var word in box.Checker.MisspelledWords)
+                int startLineIndex = box.GetFirstVisibleLineIndex();
+                int endLineIndex = box.GetLastVisibleLineIndex();
+
+                for (var i = 0; i < box.Checker.MisspelledWords.Count; i++)
                 {
-                    List<Word> words = new List<Word>();
+                    Word word = box.Checker.MisspelledWords[i];
+                    if (word.LineIndex < startLineIndex)
+                        continue;
+                    if (word.LineIndex > endLineIndex)
+                        break;
 
-                    Word wordpart = word;
-                    do
-                    {
-                        var split = Split(wordpart);
-                        words.Add(split.Item1);
-                        wordpart = split.Item2;
-                    }
-                    while (wordpart != null);
+                    Rect rectangleBounds = new Rect();
+                    rectangleBounds = box.TransformToVisual(GetTopLevelControl(box) as Visual).TransformBounds(LayoutInformation.GetLayoutSlot(box));
 
-                    foreach (var mWord in words)
-                    {
+                    Rect startRect = box.GetRectFromCharacterIndex((Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index, box.Text.Length)));
+                    Rect endRect = box.GetRectFromCharacterIndex(Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index + word.Length, box.Text.Length));
+                    Rect startRectM = box.GetRectFromCharacterIndex((Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index, box.Text.Length)));
+                    Rect endRectM = box.GetRectFromCharacterIndex(Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) +  word.Index + word.Length, box.Text.Length));
 
-                        Rect rectangleBounds = new Rect();
-                        rectangleBounds = box.TransformToVisual(GetTopLevelControl(box) as Visual).TransformBounds(LayoutInformation.GetLayoutSlot(box));
+                    startRectM.X += rectangleBounds.X;
+                    startRectM.Y += rectangleBounds.Y;
+                    endRectM.X += rectangleBounds.X;
+                    endRectM.Y += rectangleBounds.Y;
 
-                        Rect startRect = box.GetRectFromCharacterIndex((Math.Min(mWord.Index, box.Text.Length)));
-                        Rect endRect = box.GetRectFromCharacterIndex(Math.Min(mWord.Index + mWord.Length, box.Text.Length));
-
-                        Rect startRectM = box.GetRectFromCharacterIndex((Math.Min(mWord.Index, box.Text.Length)));
-                        Rect endRectM = box.GetRectFromCharacterIndex(Math.Min(mWord.Index + mWord.Length, box.Text.Length));
-
-                        startRectM.X += rectangleBounds.X;
-                        startRectM.Y += rectangleBounds.Y;
-                        endRectM.X += rectangleBounds.X;
-                        endRectM.Y += rectangleBounds.Y;
-
-                        if (rectangleBounds.Contains(startRectM) && rectangleBounds.Contains(endRectM))
-                            drawingContext.DrawLine(pen, startRect.BottomLeft, endRect.BottomRight);
-                    }
+                    if (rectangleBounds.Contains(startRectM) && rectangleBounds.Contains(endRectM))
+                        drawingContext.DrawLine(pen, startRect.BottomLeft, endRect.BottomRight);
                 }
             }
         }

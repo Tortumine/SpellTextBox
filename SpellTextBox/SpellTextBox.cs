@@ -53,12 +53,11 @@ namespace SpellTextBox
             textChangedTimer.Start();
         }
 
-        private void textChangedTimer_Elapsed(object sender,
-        System.Timers.ElapsedEventArgs e)
+        private void textChangedTimer_Elapsed(object sender,  System.Timers.ElapsedEventArgs e)
         {
             Application.Current.Dispatcher.Invoke(new System.Action(() => 
             {
-                Checker.CheckSpelling(Text);
+                Checker.CheckSpelling(this);
                 RaiseSpellcheckCompletedEvent();
             }));
         }
