@@ -181,7 +181,6 @@ namespace SpellTextBox
             {
                 ClearLists();
 
-                int index =0;
                 for (int lineIndex = 0; lineIndex < textBox.LineCount; lineIndex++)
                 {
                     var matches = Regex.Matches(textBox.GetLineText(lineIndex), @"\w+[^\s]*\w+|\w");

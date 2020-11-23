@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Windows;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
@@ -15,38 +17,58 @@ namespace SpellTextBox
         SizeChangedEventHandler sizeChangedEventHandler;
         RoutedEventHandler routedEventHandler;
         ScrollChangedEventHandler scrollChangedEventHandler;
+        public static Stopwatch stopwatch = new Stopwatch();
+        System.Windows.Threading.DispatcherTimer timer = new System.Windows.Threading.DispatcherTimer();
+        private bool adornerClear = false;
+
 
         public RedUnderlineAdorner(SpellTextBox textbox) : base(textbox)
         {
+            
+            timer.Tick += timer_Tick;
+            timer.Interval = new TimeSpan(0, 0, 0,0, 200);
 
+            stopwatch.Start();
+            timer.Start();
 
             sizeChangedEventHandler = new SizeChangedEventHandler(
                 delegate 
                 {
+                    adornerClear = true;
                     SignalInvalidate();
+                    timer.Start();
                 });
 
             routedEventHandler = new RoutedEventHandler(
                 delegate
                 {
+                    adornerClear = true;
                     SignalInvalidate();
+                    timer.Start();
                 });
 
             scrollChangedEventHandler = new ScrollChangedEventHandler(
                 delegate 
                 {
+                    adornerClear = true;
                     SignalInvalidate();
+                    timer.Start();
                 });
 
             textbox.SizeChanged += sizeChangedEventHandler;
-
             textbox.SpellcheckCompleted += routedEventHandler;
-
             textbox.AddHandler(ScrollViewer.ScrollChangedEvent, scrollChangedEventHandler);
         }
 
         SpellTextBox box;
-        Pen pen = CreateErrorPen();
+        readonly Pen pen = CreateErrorPen();
+
+        private void timer_Tick(object sender, EventArgs e)
+        {
+            adornerClear = false;
+            SignalInvalidate();
+            timer.Stop();
+        }
 
         public void Dispose()
         {
@@ -77,10 +99,13 @@ namespace SpellTextBox
 
         protected override void OnRender(DrawingContext drawingContext)
         {
-            if (box != null && box.IsSpellCheckEnabled && box.IsSpellcheckCompleted)
+            if (box != null && box.IsSpellCheckEnabled && !adornerClear && box.IsSpellcheckCompleted && !adornerClear)
             {
                 int startLineIndex = box.GetFirstVisibleLineIndex();
                 int endLineIndex = box.GetLastVisibleLineIndex();
+
+                int lineFirstCharIndex = 0;
+                int lastLineIndex = 0;
 
                 for (var i = 0; i < box.Checker.MisspelledWords.Count; i++)
                 {
@@ -89,21 +114,14 @@ namespace SpellTextBox
                         continue;
                     if (word.LineIndex > endLineIndex)
                         break;
+                    if(lastLineIndex!= word.LineIndex)
+                        lineFirstCharIndex = box.GetCharacterIndexFromLineIndex(word.LineIndex);
+                    var rectangleBounds = box.TransformToVisual(GetTopLevelControl(box) as Visual).TransformBounds(LayoutInformation.GetLayoutSlot(box));
 
-                    Rect rectangleBounds = new Rect();
-                    rectangleBounds = box.TransformToVisual(GetTopLevelControl(box) as Visual).TransformBounds(LayoutInformation.GetLayoutSlot(box));
+                    Rect startRect = box.GetRectFromCharacterIndex((Math.Min(lineFirstCharIndex + word.Index, box.Text.Length)));
+                    Rect endRect = box.GetRectFromCharacterIndex(Math.Min(lineFirstCharIndex + word.Index + word.Length, box.Text.Length));
 
-                    Rect startRect = box.GetRectFromCharacterIndex((Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index, box.Text.Length)));
-                    Rect endRect = box.GetRectFromCharacterIndex(Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index + word.Length, box.Text.Length));
-                    Rect startRectM = box.GetRectFromCharacterIndex((Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) + word.Index, box.Text.Length)));
-                    Rect endRectM = box.GetRectFromCharacterIndex(Math.Min(box.GetCharacterIndexFromLineIndex(word.LineIndex) +  word.Index + word.Length, box.Text.Length));
-
-                    startRectM.X += rectangleBounds.X;
-                    startRectM.Y += rectangleBounds.Y;
-                    endRectM.X += rectangleBounds.X;
-                    endRectM.Y += rectangleBounds.Y;
-
-                    if (rectangleBounds.Contains(startRectM) && rectangleBounds.Contains(endRectM))
+                    if (word.LineIndex != endLineIndex || (rectangleBounds.Contains(new Rect(startRect.BottomLeft.X,startRect.BottomLeft.Y + pen.Thickness, endRect.BottomRight.X, endRect.BottomRight.Y + pen.Thickness))))
                         drawingContext.DrawLine(pen, startRect.BottomLeft, endRect.BottomRight);
                 }
             }
