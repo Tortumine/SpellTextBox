@@ -50,17 +50,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="MenuAction.cs" />
-    <Compile Include="ObservableHashSet.cs" />
-    <Compile Include="StringResources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DesignTime>True</DesignTime>
-      <DependentUpon>StringResources.resx</DependentUpon>
-    </Compile>
     <Compile Include="SpellChecker.cs" />
     <Compile Include="SpellTextBox.cs" />
     <Compile Include="DelegateCommand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RedUnderlineAdorner.cs" />
+    <Compile Include="StringResources.Designer.cs" />
     <Compile Include="Word.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -88,13 +83,8 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="StringResources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>StringResources.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-    <EmbeddedResource Include="StringResources.ru-RU.resx" />
+    <EmbeddedResource Include="StringResources.resx" />
   </ItemGroup>
-  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

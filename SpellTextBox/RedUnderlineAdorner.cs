@@ -121,7 +121,7 @@ namespace SpellTextBox
                     Rect startRect = box.GetRectFromCharacterIndex((Math.Min(lineFirstCharIndex + word.Index, box.Text.Length)));
                     Rect endRect = box.GetRectFromCharacterIndex(Math.Min(lineFirstCharIndex + word.Index + word.Length, box.Text.Length));
 
-                    if (word.LineIndex != endLineIndex || (rectangleBounds.Contains(new Rect(startRect.BottomLeft.X,startRect.BottomLeft.Y + pen.Thickness, endRect.BottomRight.X, endRect.BottomRight.Y + pen.Thickness))))
+                    if (word.LineIndex != endLineIndex || endLineIndex == 0 || rectangleBounds.Contains(new Rect(startRect.BottomLeft.X,startRect.BottomLeft.Y + pen.Thickness, endRect.BottomRight.X, endRect.BottomRight.Y + pen.Thickness)))
                         drawingContext.DrawLine(pen, startRect.BottomLeft, endRect.BottomRight);
                 }
             }

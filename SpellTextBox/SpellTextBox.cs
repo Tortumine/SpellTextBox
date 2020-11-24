@@ -24,6 +24,7 @@ namespace SpellTextBox
             var cm = new ContextMenu();
             this.ContextMenu = cm;
             this.ContextMenu.Opened += OnContextMenuOpening;
+            this.SizeChanged += OnTextBoxSizeChanged;
 
             Loaded += (s, e) =>
             {
@@ -66,8 +67,7 @@ namespace SpellTextBox
 
         #region SpellcheckCompleted Event
 
-        public static readonly RoutedEvent SpellcheckCompletedEvent = EventManager.RegisterRoutedEvent(
-            "SpellcheckCompleted", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(SpellTextBox));
+        public static readonly RoutedEvent SpellcheckCompletedEvent = EventManager.RegisterRoutedEvent("SpellcheckCompleted", RoutingStrategy.Bubble, typeof(RoutedEventHandler), typeof(SpellTextBox));
 
         public event RoutedEventHandler SpellcheckCompleted
         {
@@ -83,6 +83,17 @@ namespace SpellTextBox
         }
 
         public bool IsSpellcheckCompleted { get; set; }
+
+        #endregion
+
+        #region ResizeEvent
+
+        protected void OnTextBoxSizeChanged(object sender, RoutedEventArgs e)
+        {
+            ((SpellTextBox)sender).IsSpellcheckCompleted = false;
+            textChangedTimer.Stop();
+            textChangedTimer.Start();
+        }
 
         #endregion
 
