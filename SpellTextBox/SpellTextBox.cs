@@ -189,10 +189,12 @@ namespace SpellTextBox
         {
             if (WordToReplaceWith.Text != StringResources.NoSuggestions)
             {
-                int index = Checker.SelectedMisspelledWord.Index;
+                int lineIndex = Checker.SelectedMisspelledWord.LineIndex;
+                int wordIndex = Checker.SelectedMisspelledWord.Index;
+                int textIndex = GetCharacterIndexFromLineIndex(lineIndex) + wordIndex;
                 string replacement = WordToReplaceWith.Text;
-                Text = Text.Remove(index, Checker.SelectedMisspelledWord.Length).Insert(index, replacement);
-                SelectionStart = index + WordToReplaceWith.Length;
+                Text = Text.Remove(textIndex, Checker.SelectedMisspelledWord.Length).Insert(textIndex, replacement);
+                SelectionStart = textIndex + WordToReplaceWith.Length;
             }
         }
 
