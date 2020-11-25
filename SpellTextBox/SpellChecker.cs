@@ -12,215 +12,111 @@ using System.IO;
 
 namespace SpellTextBox
 {
-    public class SpellChecker : INotifyPropertyChanged
+    public class SpellChecker : IDisposable
     {
-        private SpellTextBox box;
-        private Hunspell hunSpell;
-        private HashSet<Word> words;
-        private ObservableCollection<Word> misspelledWords;
-        private ObservableCollection<Word> suggestedWords;
+        private Hunspell _hunSpell;
         private HashSet<string> ignoredWords;
-        private Word selectedMisspelledWord;
-        private Word selectedSuggestedWord;
+        private string _customDictionaryPath;
 
-        public SpellChecker(Hunspell HunSpell, SpellTextBox Parent)
+        public EventArgs e = null;
+        public event IgnoredWordsChangedHandler IgnoredWordsChanged;
+        public delegate void IgnoredWordsChangedHandler(SpellChecker m, EventArgs e);
+        
+        public SpellChecker(Hunspell hunSpell,string customDictionaryPath = null)
         {
-            hunSpell = HunSpell; 
-            box = Parent;
-            Words = new HashSet<Word>();
-            MisspelledWords = new ObservableCollection<Word>();
+            _hunSpell = hunSpell; 
             IgnoredWords = new HashSet<string>();
-            SuggestedWords = new ObservableCollection<Word>();
+            if (String.IsNullOrEmpty(customDictionaryPath))
+            {
+                _customDictionaryPath = "Dictionaries\\CustomDictionary.txt";
+
+            }
+            LoadCustomDictionary();
         }
 
         public void Dispose()
         {
-            if (hunSpell != null)
-                hunSpell.Dispose();
+            _hunSpell?.Dispose();
         }
 
-        public HashSet<Word> Words
-        {
-            get { return words; }
-            set
-            {
-                words = value;
-                OnPropertyChanged("Words");
-            }
-        }
-
-        public ObservableCollection<Word> MisspelledWords
-        {
-            get { return misspelledWords; }
-            set
-            {
-                misspelledWords = value;
-                OnPropertyChanged("MisspelledWords");
-                if (SelectedMisspelledWord != null)
-                    SelectedMisspelledWord = null;
-            }
-        }
-
-        public ObservableCollection<MenuAction> MenuActions
-        {
-            get
-            {
-                List<MenuAction> commands = SuggestedWords.Select(w => new MenuAction()
-                {
-                    Name = w.Text,
-                    Command = new DelegateCommand(
-                        delegate
-                        {
-                            box.ReplaceSelectedWord(w);
-                        })
-                }).ToList();
-
-                if (commands.Count == 0)
-                {
-                    commands.Add(new MenuAction()
-                    {
-                        Name = StringResources.Copy,
-                        Command = ApplicationCommands.Copy
-                    });
-                    commands.Add(new MenuAction()
-                    {
-                        Name = StringResources.Cut,
-                        Command = ApplicationCommands.Cut
-                    });
-                    commands.Add(new MenuAction()
-                    {
-                        Name = StringResources.Paste,
-                        Command = ApplicationCommands.Paste
-                    });
-                }
-                else
-                {
-                    commands.Add(new MenuAction()
-                    {
-                        Name = StringResources.AddCustom,
-                        Command = new DelegateCommand(
-                            delegate
-                            {
-                                SaveToCustomDictionary(SelectedMisspelledWord.Text);
-
-                                box.FireTextChangeEvent();
-                            })
-                    });
-                }
-
-                return new ObservableCollection<MenuAction>(commands);
-            }
-        }
-
-        public ObservableCollection<Word> SuggestedWords
-        {
-            get { return suggestedWords; }
-            set
-            {
-                suggestedWords = value;
-                OnPropertyChanged("SuggestedWords");
-            }
-        }
-
+        
         public HashSet<string> IgnoredWords
         {
             get { return ignoredWords; }
             set
             {
                 ignoredWords = value;
-                OnPropertyChanged("IgnoredWords");
+                IgnoredWordsChanged?.Invoke(this, e);
             }
         }
 
-        public Word SelectedMisspelledWord
+        public void AddToIgnoredWords(string word)
         {
-            get { return selectedMisspelledWord; }
-            set
-            {
-                selectedMisspelledWord = value;
-                LoadSuggestions(value);
-                OnPropertyChanged("SelectedMisspelledWord");
-                OnPropertyChanged("IsReplaceEnabled");
-            }
+            ignoredWords.Add(word);
+            IgnoredWordsChanged?.Invoke(this, e);
         }
 
-        public Word SelectedSuggestedWord
+        public ICollection<Word> GetSuggestions(Word misspelledWord)
         {
-            get { return selectedSuggestedWord; }
-            set
-            {
-                selectedSuggestedWord = value;
-                OnPropertyChanged("SelectedSuggestedWord");
-                OnPropertyChanged("IsReplaceEnabled");
-            }
+            ObservableCollection<Word> ret = new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0, 0) };
+
+            if (misspelledWord == null)
+                return new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0, 0) };
+            
+            ret = new ObservableCollection<Word>(_hunSpell.Suggest(misspelledWord.Text).Select(s => new Word(s, misspelledWord.Index, misspelledWord.LineIndex)));
+            if (ret.Count == 0)
+                ret = new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0, 0) };
+            return ret;
         }
 
-        public void LoadSuggestions(Word misspelledWord)
+        public ObservableCollection<Word> CheckSpelling(SpellTextBox textBox)
         {
-            if (misspelledWord != null)
+            ObservableCollection<Word> ret = new ObservableCollection<Word>();
+            for (int lineIndex = 0; lineIndex < textBox.LineCount; lineIndex++)
             {
-                SuggestedWords = new ObservableCollection<Word>(hunSpell.Suggest(misspelledWord.Text).Select(s => new Word(s, misspelledWord.Index, misspelledWord.LineIndex)));
-                if (SuggestedWords.Count == 0) SuggestedWords = new ObservableCollection<Word> { new Word(StringResources.NoSuggestions, 0,0) };
-            }
-            else
-            {
-                SuggestedWords = new ObservableCollection<Word>();
-            }
-            OnPropertyChanged("SuggestedWords");
-        }
+                var matches = Regex.Matches(textBox.GetLineText(lineIndex), @"\w+[^\s]*\w+|\w");
 
-        public void ClearLists()
-        {
-            Words.Clear();
-            MisspelledWords.Clear();
-        }
-
-        public void CheckSpelling(SpellTextBox textBox)
-        {
-            if (box.IsSpellCheckEnabled)
-            {
-                ClearLists();
-
-                for (int lineIndex = 0; lineIndex < textBox.LineCount; lineIndex++)
+                for (var i = 0; i < matches.Count; i++)
                 {
-                    var matches = Regex.Matches(textBox.GetLineText(lineIndex), @"\w+[^\s]*\w+|\w");
-
-                    for (var i = 0; i < matches.Count; i++)
+                    Match match = matches[i];
+                    if (!IgnoredWords.Contains(match.Value) && !_hunSpell.Spell(match.Value) && !Regex.IsMatch(match.Value, "^(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[1,3-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$"))
                     {
-                        Match match = matches[i];
-                        if (!IgnoredWords.Contains(match.Value) && !hunSpell.Spell(match.Value) && !Regex.IsMatch(match.Value, "^(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[1,3-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$"))
-                        {
-                            MisspelledWords.Add(new Word(match.Value, match.Index, lineIndex));
-                        }
+                        ret.Add(new Word(match.Value, match.Index, lineIndex));
                     }
                 }
-
-                OnPropertyChanged("MisspelledWords");
-                OnPropertyChanged("IgnoredWords");
             }
+            return ret;
         }
 
-        public void LoadCustomDictionary()
+        public IEnumerable<Word> CheckSpelling(List<Word> words)
         {
-            string[] strings = File.ReadAllLines(box.CustomDictionaryPath);
+            List<Word> ret = new List<Word>();
+            for (var i = 0; i < words.Count(); i++)
+            {
+                Word word = words[i];
+                if (!IgnoredWords.Contains(word.Text) && !_hunSpell.Spell(word.Text) && !Regex.IsMatch(word.Text, "^(?:(?:31(\\/|-|\\.)(?:0?[13578]|1[02]))\\1|(?:(?:29|30)(\\/|-|\\.)(?:0?[1,3-9]|1[0-2])\\2))(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$|^(?:29(\\/|-|\\.)0?2\\3(?:(?:(?:1[6-9]|[2-9]\\d)?(?:0[48]|[2468][048]|[13579][26])|(?:(?:16|[2468][048]|[3579][26])00))))$|^(?:0?[1-9]|1\\d|2[0-8])(\\/|-|\\.)(?:(?:0?[1-9])|(?:1[0-2]))\\4(?:(?:1[6-9]|[2-9]\\d)?\\d{2})$"))
+                {
+                    ret.Add(new Word(word.Text, word.Index, word.LineIndex));
+                }
+            }
+
+            return ret;
+        }
+
+        private void LoadCustomDictionary()
+        {
+            string[] strings = File.ReadAllLines(_customDictionaryPath);
             foreach (var str in strings)
             {
-                hunSpell.Add(str);
+                _hunSpell.Add(str);
             }
         }
 
         public void SaveToCustomDictionary(string word)
         {
-            File.AppendAllText(box.CustomDictionaryPath, $@"{word.ToLower()}{Environment.NewLine}");
-            hunSpell.Add(word);
+            File.AppendAllText(_customDictionaryPath, $@"{word.ToLower()}{Environment.NewLine}");
+            _hunSpell.Add(word);
             IgnoredWords.Add(word);
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        public void OnPropertyChanged(string propertyName)
-        {
-            var handler = this.PropertyChanged;
-            if (handler != null) this.PropertyChanged(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

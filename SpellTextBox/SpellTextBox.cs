@@ -1,5 +1,6 @@
 ﻿using NHunspell;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -12,12 +13,39 @@ namespace SpellTextBox
 {
     public class SpellTextBox : TextBox
     {
+        public ObservableCollection<Word> misspelledWords = new ObservableCollection<Word>();
+        public ObservableCollection<Word> suggestedWords = new ObservableCollection<Word>();
+        private Word selectedMisspelledWord;
+
+        public SpellChecker SpellChecker;
+
+        AdornerLayer adornerLayer;
+        RedUnderlineAdorner adorner;
+
+        static Timer textChangedTimer = new System.Timers.Timer(500);
+        ElapsedEventHandler textChangedTimerOnElapse;
+
         static SpellTextBox()
         {
             TextProperty.OverrideMetadata(typeof(SpellTextBox), new FrameworkPropertyMetadata(new PropertyChangedCallback(TextPropertyChanged)));
         }
 
         public SpellTextBox() : base()
+        {
+            CreateTimer();
+
+            this.ContextMenu = new ContextMenu();
+            this.ContextMenu.Opened += OnContextMenuOpening;
+            this.SizeChanged += OnTextBoxSizeChanged;
+
+            Loaded += (s, e) =>
+            {
+                Initialize();
+                if (Window.GetWindow(this) != null)
+                    Window.GetWindow(this).Closing += (s1, e1) => Dispose();
+            };
+        }
+        public SpellTextBox(SpellChecker spellChecker) : base()
         {
             CreateTimer();
 
@@ -32,12 +60,16 @@ namespace SpellTextBox
                 if (Window.GetWindow(this) != null)
                     Window.GetWindow(this).Closing += (s1, e1) => Dispose();
             };
+
+            if (spellChecker != null)
+                this.SpellChecker = spellChecker;
         }
 
-        #region Timer
-
-        static Timer textChangedTimer = new System.Timers.Timer(500);
-        ElapsedEventHandler textChangedTimerOnElapse;
+        public SpellChecker InitSpellChecker()
+        {
+            SpellChecker = SpellCheckerProvider.Instance.GetSpellChecker(DictionaryPath);
+            return SpellChecker;
+        }
 
         void CreateTimer()
         {
@@ -58,12 +90,10 @@ namespace SpellTextBox
         {
             Application.Current.Dispatcher.Invoke(new System.Action(() => 
             {
-                Checker.CheckSpelling(this);
+                misspelledWords = SpellChecker.CheckSpelling(this);
                 RaiseSpellcheckCompletedEvent();
             }));
         }
-
-        #endregion
 
         #region SpellcheckCompleted Event
 
@@ -102,16 +132,53 @@ namespace SpellTextBox
             int lineIndex = GetLineIndexFromCharacterIndex(SelectionStart);
             int lineFirstCharIndex = GetCharacterIndexFromLineIndex(lineIndex);
 
-            Checker.SelectedMisspelledWord = Checker.MisspelledWords.FirstOrDefault(w => w.LineIndex == GetLineIndexFromCharacterIndex(SelectionStart) && SelectionStart >= lineFirstCharIndex + w.Index && SelectionStart <= lineFirstCharIndex + w.Index + w.Length);
-           
-            this.ContextMenu.Items.Clear();
-            foreach (var item in Checker.MenuActions)
+            selectedMisspelledWord = misspelledWords.FirstOrDefault(w => w.LineIndex == GetLineIndexFromCharacterIndex(SelectionStart) && SelectionStart >= lineFirstCharIndex + w.Index && SelectionStart <= lineFirstCharIndex + w.Index + w.Length);
+
+            var suggestedWords = SpellChecker.GetSuggestions(selectedMisspelledWord);
+            ContextMenu.Items.Clear();
+            
+            foreach (Word word in suggestedWords)
             {
-                var mi = new MenuItem();
-                mi.Header = item.Name;
-                mi.Command = item.Command;
-                this.ContextMenu.Items.Add(mi);
+                MenuItem mi = new MenuItem();
+                mi.Header = word.Text;
+                mi.FontWeight = FontWeights.Bold;
+                mi.Command = new DelegateCommand(
+                    delegate
+                    {
+                        ReplaceSelectedWord(word);
+                    });
+                mi.CommandParameter = word;
+                mi.CommandTarget = this;
+                ContextMenu.Items.Add(mi);
             }
+            Separator separatorMenuItem1 = new Separator();
+            ContextMenu.Items.Add(separatorMenuItem1);
+
+            if (misspelledWords!=null)
+            {
+                MenuItem mi = new MenuItem();
+                mi.Header = StringResources.AddCustom;
+                mi.Command = new DelegateCommand(
+                    delegate
+                    {
+                        SpellChecker.SaveToCustomDictionary(selectedMisspelledWord.Text);
+                        this.FireTextChangeEvent();
+                    });
+                mi.CommandTarget = this;
+                ContextMenu.Items.Add(mi);
+
+                Separator separatorMenuItem2 = new Separator();
+                ContextMenu.Items.Add(separatorMenuItem2);
+            }
+            
+            MenuItem menuItemCopy = new MenuItem { Header = "Copy", Command = ApplicationCommands.Copy };
+            MenuItem menuItemPaste = new MenuItem { Header = "Paste", Command = ApplicationCommands.Paste };
+            MenuItem menuItemSelectAll = new MenuItem { Header = "Select All", Command = ApplicationCommands.SelectAll };
+
+            ContextMenu.Items.Add(menuItemCopy);
+            ContextMenu.Items.Add(menuItemPaste);
+            ContextMenu.Items.Add(menuItemSelectAll);
+
         }
 
         public static readonly DependencyProperty DictionaryPathProperty =
@@ -134,7 +201,7 @@ namespace SpellTextBox
 
         public string CustomDictionaryPath
         {
-            get { return (string)this.GetValue(CustomDictionaryPathProperty) ?? "custom.txt"; }
+            get { return (string)this.GetValue(CustomDictionaryPathProperty) ?? "CustomDictionary.txt"; }
             set { this.SetValue(CustomDictionaryPathProperty, value); }
         }
 
@@ -150,74 +217,41 @@ namespace SpellTextBox
             set { this.SetValue(IsSpellCheckEnabledProperty, value); }
         }
 
-        AdornerLayer myAdornerLayer;
-        RedUnderlineAdorner myAdorner;
 
         public void Initialize()
         {
-            myAdornerLayer = AdornerLayer.GetAdornerLayer(this);
-            myAdorner = new RedUnderlineAdorner(this);
-            myAdornerLayer.Add(myAdorner);
+            adornerLayer = AdornerLayer.GetAdornerLayer(this);
+            adorner = new RedUnderlineAdorner(this);
+            adornerLayer.Add(adorner);
+            InitSpellChecker();
         }
 
         public void Dispose()
         {
-            myAdorner.Dispose();
-            myAdornerLayer.Remove(myAdorner);
+            adorner.Dispose();
+            adornerLayer.Remove(adorner);
             this.ContextMenu.Opened -= OnContextMenuOpening;
             textChangedTimer.Elapsed -= textChangedTimerOnElapse;
-            if (checker != null)
-                checker.Dispose();
-        }
-
-        private SpellChecker checker;
-
-        public SpellChecker Checker
-        {
-            get { return checker ?? CreateSpellCheker(); }
-            set { checker = value; }
-        }
-
-        private SpellChecker CreateSpellCheker()
-        {
-            checker = new SpellChecker(new Hunspell(DictionaryPath + ".aff", DictionaryPath + ".dic"), this);
-            checker.LoadCustomDictionary();
-            return checker;
+            if (SpellChecker != null)
+                SpellChecker.Dispose();
         }
 
         public void ReplaceSelectedWord(Word WordToReplaceWith)
         {
             if (WordToReplaceWith.Text != StringResources.NoSuggestions)
             {
-                int lineIndex = Checker.SelectedMisspelledWord.LineIndex;
-                int wordIndex = Checker.SelectedMisspelledWord.Index;
+                int lineIndex = selectedMisspelledWord.LineIndex;
+                int wordIndex = selectedMisspelledWord.Index;
                 int textIndex = GetCharacterIndexFromLineIndex(lineIndex) + wordIndex;
                 string replacement = WordToReplaceWith.Text;
-                Text = Text.Remove(textIndex, Checker.SelectedMisspelledWord.Length).Insert(textIndex, replacement);
+                Text = Text.Remove(textIndex, selectedMisspelledWord.Length).Insert(textIndex, replacement);
                 SelectionStart = textIndex + WordToReplaceWith.Length;
             }
         }
-
+        
         public void FireTextChangeEvent()
         {
-            int c = SelectionStart;
-            string s = Text;
-            Text = s + " ";
-            Text = s;
-            SelectionStart = c;
-        }
 
-        private ICommand _replace;
-        public ICommand Replace
-        {
-            get
-            {
-                return _replace ?? (_replace = new DelegateCommand(
-                        delegate
-                        {
-                            ReplaceSelectedWord(checker.SelectedSuggestedWord);
-                        }));
-            }
         }
     }
 }

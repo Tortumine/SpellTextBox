@@ -9,7 +9,7 @@
             <RowDefinition/>
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
-        <stb:SpellTextBox Grid.Row="1" x:Name="myTextBox" DictionaryPath="Dictionaries\en-gb" CustomDictionaryPath="custom.txt"
+        <stb:SpellTextBox Grid.Row="1" x:Name="SpellTextBox" DictionaryPath="Dictionaries\en-gb" CustomDictionaryPath="CustomDictionary.txt"
                           Text="{Binding Path=Text, UpdateSourceTrigger=PropertyChanged}" Grid.ColumnSpan="2" AcceptsReturn="True"
                           IsSpellCheckEnabled="true" VerticalScrollBarVisibility="Visible" TextWrapping="Wrap"/>
     </Grid>
