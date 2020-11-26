@@ -99,7 +99,7 @@ namespace SpellTextBox
 
         protected override void OnRender(DrawingContext drawingContext)
         {
-            if (box != null && box.IsSpellCheckEnabled && !adornerClear && box.IsSpellcheckCompleted && !adornerClear)
+            if (box != null && box.IsSpellCheckEnabled && !adornerClear)
             {
                 int startLineIndex = box.GetFirstVisibleLineIndex();
                 int endLineIndex = box.GetLastVisibleLineIndex();
@@ -107,9 +107,9 @@ namespace SpellTextBox
                 int lineFirstCharIndex = 0;
                 int lastLineIndex = 0;
 
-                for (var i = 0; i < box.Checker.MisspelledWords.Count; i++)
+                for (var i = 0; i < box.misspelledWords.Count; i++)
                 {
-                    Word word = box.Checker.MisspelledWords[i];
+                    Word word = box.misspelledWords[i];
                     if (word.LineIndex < startLineIndex)
                         continue;
                     if (word.LineIndex > endLineIndex)
@@ -121,7 +121,10 @@ namespace SpellTextBox
                     Rect startRect = box.GetRectFromCharacterIndex((Math.Min(lineFirstCharIndex + word.Index, box.Text.Length)));
                     Rect endRect = box.GetRectFromCharacterIndex(Math.Min(lineFirstCharIndex + word.Index + word.Length, box.Text.Length));
 
-                    if (word.LineIndex != endLineIndex || endLineIndex == 0 || rectangleBounds.Contains(new Rect(startRect.BottomLeft.X,startRect.BottomLeft.Y + pen.Thickness, endRect.BottomRight.X, endRect.BottomRight.Y + pen.Thickness)))
+                    //new Rect(startRect.BottomLeft.X,startRect.BottomLeft.Y, endRect.BottomRight.X, endRect.BottomRight.Y 
+                    //Contains(double x, double y)
+
+                    if ((rectangleBounds.Contains(startRect.TopLeft.X+ rectangleBounds.X, startRect.TopLeft.Y+ rectangleBounds.Y) && rectangleBounds.Contains(startRect.BottomRight.X+ rectangleBounds.X, startRect.BottomRight.Y+rectangleBounds.Y)))
                         drawingContext.DrawLine(pen, startRect.BottomLeft, endRect.BottomRight);
                 }
             }

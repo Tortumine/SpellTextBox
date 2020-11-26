@@ -20,7 +20,7 @@ namespace SpellTextBox
         }
 
         public DelegateCommand(Action<object> execute,
-                       Predicate<object> canExecute)
+            Predicate<object> canExecute)
         {
             _execute = execute;
             _canExecute = canExecute;
