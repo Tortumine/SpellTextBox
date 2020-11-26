@@ -251,7 +251,11 @@ namespace SpellTextBox
         
         public void FireTextChangeEvent()
         {
-
+            int c = SelectionStart;
+            string s = Text;
+            Text = s + " ";
+            Text = s;
+            SelectionStart = c;
         }
     }
 }

@@ -4,13 +4,20 @@
         xmlns:stb="clr-namespace:SpellTextBox;assembly=SpellTextBox"
         Title="MainWindow" Height="350" Width="525">
     <Grid>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="25"/>
             <RowDefinition/>
             <RowDefinition Height="25"/>
         </Grid.RowDefinitions>
-        <stb:SpellTextBox Grid.Row="1" x:Name="SpellTextBox" DictionaryPath="Dictionaries\en-gb" CustomDictionaryPath="CustomDictionary.txt"
-                          Text="{Binding Path=Text, UpdateSourceTrigger=PropertyChanged}" Grid.ColumnSpan="2" AcceptsReturn="True"
-                          IsSpellCheckEnabled="true" VerticalScrollBarVisibility="Visible" TextWrapping="Wrap"/>
+
+        <stb:SpellTextBox HorizontalAlignment="Left" Height="23" Margin="10,22,0,0" Grid.Row="1" VerticalAlignment="Top" Width="497" x:Name="SpellTextBox1" DictionaryPath="Dictionaries\en-gb" 
+                          CustomDictionaryPath="CustomDictionary.txt" Text="{Binding Path=Text, UpdateSourceTrigger=PropertyChanged}" Grid.ColumnSpan="2" AcceptsReturn="False" IsSpellCheckEnabled="true" 
+                          TextWrapping="NoWrap"/>
+
+        <stb:SpellTextBox HorizontalAlignment="Left" Height="192" Margin="10,67,0,0" Grid.Row="1" VerticalAlignment="Top" Width="497" x:Name="SpellTextBox2" DictionaryPath="Dictionaries\en-gb" 
+                          CustomDictionaryPath="CustomDictionary.txt" Text="{Binding Path=Text, UpdateSourceTrigger=PropertyChanged}" Grid.ColumnSpan="2" AcceptsReturn="True" IsSpellCheckEnabled="true" 
+                          VerticalScrollBarVisibility="Visible" TextWrapping="Wrap" />
+
     </Grid>
 </Window>
